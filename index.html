@@ -58,6 +58,7 @@
             transition: transform 0.1s;
             user-select: none;
             filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.5));
+            z-index: 100;
         }
 
         .cookie:hover {
@@ -99,6 +100,7 @@
             font-size: 20px;
             pointer-events: none;
             animation: scoreFloat 1s ease-out forwards;
+            z-index: 200;
         }
 
         @keyframes scoreFloat {
@@ -148,6 +150,7 @@
             color: #FFD700;
             pointer-events: none;
             animation: multiplierPulse 0.5s ease-out;
+            z-index: 200;
         }
 
         @keyframes multiplierPulse {
@@ -172,6 +175,7 @@
             border: 2px solid #ff0000;
             pointer-events: none;
             animation: missRipple 0.6s ease-out forwards;
+            z-index: 50;
         }
 
         @keyframes missRipple {
@@ -194,6 +198,7 @@
             border-radius: 10px;
             font-size: 18px;
             font-weight: bold;
+            z-index: 1000;
         }
 
         .accuracy-low {
@@ -261,9 +266,6 @@
         // Cookie management
         const cookies = new Set();
         const maxCookies = 5;
-        
-        // Track if a click hit anything
-        let clickHitSomething = false;
 
         // Function to check if a position overlaps with UI elements
         function isPositionValid(x, y, width, height) {
@@ -382,12 +384,6 @@
                 timerBar.style.width = '0%';
             }, 100);
             
-            // Click handler
-            cookie.addEventListener('click', (e) => {
-                e.stopPropagation();
-                clickCookie(cookie);
-            });
-            
             // Auto remove after 3 seconds
             const timeout = setTimeout(() => {
                 removeCookie(cookie, false);
@@ -401,7 +397,6 @@
         function clickCookie(cookie) {
             if (!cookies.has(cookie)) return;
             
-            clickHitSomething = true;
             clearTimeout(cookie.timeout);
             const points = 1 * gameState.multiplier;
             gameState.score += points;
@@ -446,7 +441,6 @@
         }
         
         function buyUpgrade(type) {
-            clickHitSomething = true; // Fixed typo
             const cost = gameState.upgradeCosts[type];
             
             if (gameState.score < cost) return;
@@ -483,8 +477,6 @@
             document.getElementById('cookiesClicked').textContent = gameState.cookiesClicked;
             document.getElementById('cookiesMissed').textContent = gameState.cookiesMissed;
             document.getElementById('totalClicks').textContent = gameState.totalClicks;
-            
-            updateAccuracy();
         }
         
         function updateAccuracy() {
@@ -524,17 +516,24 @@
         }
         
         // Track all clicks on the game container
-        document.getElementById('gameContainer').addEventListener('click', (e) => {
-            // Don't count clicks on UI elements
-            if (e.target.closest('#stats') || e.target.closest('#shop') || e.target.closest('#accuracy-display')) {
+        document.addEventListener('click', (e) => {
+            // Check if click is on a UI element
+            if (e.target.closest('#stats') || 
+                e.target.closest('#shop') || 
+                e.target.closest('#accuracy-display')) {
                 return;
             }
             
+            // Check if click is on a cookie
+            const clickedCookie = e.target.closest('.cookie');
+            
+            // Increment total clicks for any click in the game area
             gameState.totalClicks++;
             
-            // If this click didn't hit a cookie (handled by the cookie's click event)
-            if (!clickHitSomething) {
-                // Show miss indicator
+            if (clickedCookie) {
+                clickCookie(clickedCookie);
+            } else {
+                // Show miss indicator for clicks that didn't hit a cookie
                 const miss = document.createElement('div');
                 miss.className = 'miss-indicator';
                 miss.style.left = (e.clientX - 10) + 'px';
@@ -544,10 +543,8 @@
                 setTimeout(() => miss.remove(), 600);
             }
             
-            // Reset the flag for the next click
-            clickHitSomething = false;
-            
             updateStats();
+            updateAccuracy();
         });
         
         // Game loop
@@ -563,6 +560,7 @@
         // Start game
         gameLoop();
         updateStats();
+        updateAccuracy();
         
         // Handle window resize
         window.addEventListener('resize', () => {
