@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Floating Cookie Clicker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+            position: relative;
+        }
+
+        #gameContainer {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        #stats {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            min-width: 200px;
+            min-height: 120px;
+        }
+
+        #shop {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            width: 250px;
+            min-height: 200px;
+        }
+
+        .cookie {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            cursor: pointer;
+            transition: transform 0.1s;
+            user-select: none;
+            filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.5));
+        }
+
+        .cookie:hover {
+            transform: scale(1.1);
+        }
+
+        .cookie-inner {
+            width: 100%;
+            height: 100%;
+            background: #8B4513;
+            border-radius: 50%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cookie-inner::before {
+            content: '';
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #4B2F20;
+            border-radius: 50%;
+            box-shadow:
+                15px 15px 0 #4B2F20,
+                30px 20px 0 #4B2F20,
+                50px 15px 0 #4B2F20,
+                20px 40px 0 #4B2F20,
+                45px 45px 0 #4B2F20,
+                60px 35px 0 #4B2F20,
+                10px 55px 0 #4B2F20,
+                35px 60px 0 #4B2F20,
+                55px 55px 0 #4B2F20;
+        }
+
+        .score-popup {
+            position: absolute;
+            color: #FFD700;
+            font-weight: bold;
+            font-size: 20px;
+            pointer-events: none;
+            animation: scoreFloat 1s ease-out forwards;
+        }
+
+        @keyframes scoreFloat {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-50px) scale(1.5);
+            }
+        }
+
+        .shop-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .shop-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .shop-item.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .timer-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: #ff0000;
+            transition: width 3s linear;
+        }
+
+        .multiplier-effect {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #FFD700;
+            pointer-events: none;
+            animation: multiplierPulse 0.5s ease-out;
+        }
+
+        @keyframes multiplierPulse {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+        }
+
+        @keyframes cookieFloat {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            25% { transform: translate(20px, -20px) rotate(90deg); }
+            50% { transform: translate(-20px, -30px) rotate(180deg); }
+            75% { transform: translate(-30px, -10px) rotate(270deg); }
+            100% { transform: translate(0, 0) rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="stats">
+            <h2>Score: <span id="score">0</span></h2>
+            <p>Multiplier: ×<span id="multiplier">1</span></p>
+            <p>Cookies Clicked: <span id="cookiesClicked">0</span></p>
+            <p>Cookies Missed: <span id="cookiesMissed">0</span></p>
+        </div>
+
+        <div id="shop">
+            <h3>Shop</h3>
+            <div class="shop-item" onclick="buyUpgrade('multiplier')">
+                <div>2× Multiplier</div>
+                <div>Cost: <span id="multiplierCost">100</span> points</div>
+            </div>
+            <div class="shop-item" onclick="buyUpgrade('speed')">
+                <div>Faster Cookies</div>
+                <div>Cost: <span id="speedCost">200</span> points</div>
+            </div>
+            <div class="shop-item" onclick="buyUpgrade('spawn')">
+                <div>More Cookies</div>
+                <div>Cost: <span id="spawnCost">500</span> points</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game state
+        const gameState = {
+            score: 0,
+            multiplier: 1,
+            cookiesClicked: 0,
+            cookiesMissed: 0,
+            cookieSpeed: 1,
+            cookieSpawnRate: 1,
+            upgradeCosts: {
+                multiplier: 100,
+                speed: 200,
+                spawn: 500
+            }
+        };
+
+        // Cookie management
+        const cookies = new Set();
+        const maxCookies = 5;
+        
+        // Function to check if a position overlaps with UI elements
+        function isPositionValid(x, y, width, height) {
+            const cookieSize = 80; // cookie size
+            const buffer = 20; // extra buffer space
+            
+            // Get UI element positions and dimensions
+            const stats = document.getElementById('stats');
+            const shop = document.getElementById('shop');
+            const statsRect = stats.getBoundingClientRect();
+            const shopRect = shop.getBoundingClientRect();
+            
+            // Check if cookie would overlap with stats panel
+            if (x < statsRect.right + buffer && 
+                x + cookieSize > statsRect.left - buffer &&
+                y < statsRect.bottom + buffer && 
+                y + cookieSize > statsRect.top - buffer) {
+                return false;
+            }
+            
+            // Check if cookie would overlap with shop panel
+            if (x < shopRect.right + buffer && 
+                x + cookieSize > shopRect.left - buffer &&
+                y < shopRect.bottom + buffer && 
+                y + cookieSize > shopRect.top - buffer) {
+                return false;
+            }
+            
+            return true;
+        }
+        
+        // Function to find a valid position for a new cookie
+        function findValidPosition(maxAttempts = 50) {
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                const x = Math.random() * (window.innerWidth - 100);
+                const y = Math.random() * (window.innerHeight - 100);
+                
+                if (isPositionValid(x, y, window.innerWidth, window.innerHeight)) {
+                    // Also check for overlap with existing cookies
+                    let overlapsWithCookie = false;
+                    
+                    cookies.forEach(existingCookie => {
+                        const existingX = parseFloat(existingCookie.style.left);
+                        const existingY = parseFloat(existingCookie.style.top);
+                        const distance = Math.sqrt(Math.pow(x - existingX, 2) + Math.pow(y - existingY, 2));
+                        
+                        if (distance < 120) { // Minimum distance between cookies
+                            overlapsWithCookie = true;
+                        }
+                    });
+                    
+                    if (!overlapsWithCookie) {
+                        return { x, y };
+                    }
+                }
+            }
+            
+            // If no valid position found, try a fallback position
+            const fallbackZones = [
+                { x: window.innerWidth / 2 - 40, y: window.innerHeight / 2 - 40 },
+                { x: window.innerWidth / 4, y: window.innerHeight / 2 },
+                { x: 3 * window.innerWidth / 4, y: window.innerHeight / 2 },
+                { x: window.innerWidth / 2, y: window.innerHeight / 4 },
+                { x: window.innerWidth / 2, y: 3 * window.innerHeight / 4 }
+            ];
+            
+            for (let zone of fallbackZones) {
+                if (isPositionValid(zone.x, zone.y, window.innerWidth, window.innerHeight)) {
+                    return zone;
+                }
+            }
+            
+            // Last resort: center of screen
+            return { 
+                x: window.innerWidth / 2 - 40, 
+                y: window.innerHeight / 2 - 40 
+            };
+        }
+        
+        function createCookie() {
+            if (cookies.size >= maxCookies * gameState.cookieSpawnRate) return;
+            
+            const cookie = document.createElement('div');
+            cookie.className = 'cookie';
+            
+            const cookieInner = document.createElement('div');
+            cookieInner.className = 'cookie-inner';
+            
+            const timerBar = document.createElement('div');
+            timerBar.className = 'timer-bar';
+            
+            cookie.appendChild(cookieInner);
+            cookie.appendChild(timerBar);
+            
+            // Get a valid position that doesn't overlap with UI elements
+            const position = findValidPosition();
+            cookie.style.left = position.x + 'px';
+            cookie.style.top = position.y + 'px';
+            
+            // Floating animation
+            cookie.style.animation = `cookieFloat ${3 + Math.random() * 2}s infinite ease-in-out ${Math.random() * 2}s`;
+            
+            // Timer bar animation
+            timerBar.style.width = '100%';
+            setTimeout(() => {
+                timerBar.style.width = '0%';
+            }, 100);
+            
+            // Click handler
+            cookie.addEventListener('click', () => clickCookie(cookie));
+            
+            // Auto remove after 3 seconds
+            const timeout = setTimeout(() => {
+                removeCookie(cookie, false);
+            }, 3000);
+            
+            cookie.timeout = timeout;
+            cookies.add(cookie);
+            document.getElementById('gameContainer').appendChild(cookie);
+        }
+        
+        function clickCookie(cookie) {
+            if (!cookies.has(cookie)) return;
+            
+            clearTimeout(cookie.timeout);
+            const points = 1 * gameState.multiplier;
+            gameState.score += points;
+            gameState.cookiesClicked++;
+            
+            // Show score popup
+            const popup = document.createElement('div');
+            popup.className = 'score-popup';
+            popup.textContent = `+${points}`;
+            popup.style.left = cookie.style.left;
+            popup.style.top = cookie.style.top;
+            document.body.appendChild(popup);
+            
+            setTimeout(() => popup.remove(), 1000);
+            
+            // Show multiplier effect if active
+            if (gameState.multiplier > 1) {
+                const effect = document.createElement('div');
+                effect.className = 'multiplier-effect';
+                effect.textContent = `×${gameState.multiplier}`;
+                effect.style.left = cookie.style.left;
+                effect.style.top = cookie.style.top;
+                document.body.appendChild(effect);
+                
+                setTimeout(() => effect.remove(), 500);
+            }
+            
+            removeCookie(cookie, true);
+            updateStats();
+        }
+        
+        function removeCookie(cookie, clicked) {
+            if (!cookies.has(cookie)) return;
+            
+            cookies.delete(cookie);
+            cookie.remove();
+            
+            if (!clicked) {
+                gameState.cookiesMissed++;
+                updateStats();
+            }
+        }
+        
+        function buyUpgrade(type) {
+            const cost = gameState.upgradeCosts[type];
+            
+            if (gameState.score < cost) return;
+            
+            gameState.score -= cost;
+            
+            switch(type) {
+                case 'multiplier':
+                    gameState.multiplier *= 2;
+                    gameState.upgradeCosts.multiplier *= 3;
+                    document.getElementById('multiplierCost').textContent = gameState.upgradeCosts.multiplier;
+                    break;
+                    
+                case 'speed':
+                    gameState.cookieSpeed *= 0.8;
+                    gameState.upgradeCosts.speed *= 2;
+                    document.getElementById('speedCost').textContent = gameState.upgradeCosts.speed;
+                    break;
+                    
+                case 'spawn':
+                    gameState.cookieSpawnRate += 0.5;
+                    gameState.upgradeCosts.spawn *= 2;
+                    document.getElementById('spawnCost').textContent = gameState.upgradeCosts.spawn;
+                    break;
+            }
+            
+            updateStats();
+            updateShopItems();
+        }
+        
+        function updateStats() {
+            document.getElementById('score').textContent = gameState.score;
+            document.getElementById('multiplier').textContent = gameState.multiplier;
+            document.getElementById('cookiesClicked').textContent = gameState.cookiesClicked;
+            document.getElementById('cookiesMissed').textContent = gameState.cookiesMissed;
+        }
+        
+        function updateShopItems() {
+            const items = document.querySelectorAll('.shop-item');
+            items.forEach((item, index) => {
+                const costs = [
+                    gameState.upgradeCosts.multiplier,
+                    gameState.upgradeCosts.speed,
+                    gameState.upgradeCosts.spawn
+                ];
+                
+                if (gameState.score < costs[index]) {
+                    item.classList.add('disabled');
+                } else {
+                    item.classList.remove('disabled');
+                }
+            });
+        }
+        
+        // Game loop
+        function gameLoop() {
+            createCookie();
+            updateShopItems();
+            
+            setTimeout(() => {
+                requestAnimationFrame(gameLoop);
+            }, 1000 * gameState.cookieSpeed);
+        }
+        
+        // Start game
+        gameLoop();
+        updateStats();
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            cookies.forEach(cookie => {
+                const x = Math.min(parseFloat(cookie.style.left), window.innerWidth - 100);
+                const y = Math.min(parseFloat(cookie.style.top), window.innerHeight - 100);
+                
+                // Ensure cookie doesn't end up behind UI elements after resize
+                if (!isPositionValid(x, y, window.innerWidth, window.innerHeight)) {
+                    const newPosition = findValidPosition();
+                    cookie.style.left = newPosition.x + 'px';
+                    cookie.style.top = newPosition.y + 'px';
+                } else {
+                    cookie.style.left = x + 'px';
+                    cookie.style.top = y + 'px';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
